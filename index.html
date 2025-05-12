@@ -1,0 +1,1426 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#4CAF50">
+  <title>AgroDecision - Análise Climática</title>
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icons/icon-192x192.png">
+  <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#4CAF50',
+            secondary: '#388E3C',
+            accent: '#8BC34A',
+            dark: '#2E7D32',
+            light: '#C8E6C9'
+          },
+          fontFamily: {
+            sans: ['"Nunito Sans"', 'sans-serif'],
+            display: ['"Fredoka One"', 'cursive']
+          }
+        }
+      }
+    }
+  </script>
+  
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&family=Fredoka+One&display=swap" rel="stylesheet">
+  
+  <!-- Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css">
+  
+  <!-- Animation Libraries -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.9.6/lottie.min.js"></script>
+  
+  <style>
+    :root {
+      --primary: #4CAF50;
+      --secondary: #388E3C;
+      --accent: #8BC34A;
+      --dark: #2E7D32;
+      --light: #C8E6C9;
+    }
+    
+    /* Custom Animations */
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+    
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+    
+    @keyframes growPlant {
+      0% { transform: scaleY(0.1); opacity: 0; }
+      50% { transform: scaleY(1.1); opacity: 1; }
+      100% { transform: scaleY(1); opacity: 1; }
+    }
+    
+    .animate-float {
+      animation: float 3s ease-in-out infinite;
+    }
+    
+    .animate-pulse {
+      animation: pulse 2s ease-in-out infinite;
+    }
+    
+    .animate-grow {
+      animation: growPlant 1.5s ease-out forwards;
+    }
+    
+    /* 3D Card Effect */
+    .card-3d {
+      transform-style: preserve-3d;
+      transition: all 0.3s ease;
+    }
+    
+    .card-3d:hover {
+      transform: translateY(-5px) rotateX(5deg) rotateY(5deg);
+      box-shadow: 0 15px 30px rgba(0,0,0,0.2);
+    }
+    
+    /* Loading Spinner */
+    .loader {
+      width: 48px;
+      height: 48px;
+      border: 5px solid var(--light);
+      border-bottom-color: var(--primary);
+      border-radius: 50%;
+      display: inline-block;
+      animation: rotation 1s linear infinite;
+    }
+    
+    @keyframes rotation {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    
+    ::-webkit-scrollbar-track {
+      background: #f1f1f1;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+      background: var(--primary);
+      border-radius: 10px;
+    }
+    
+    /* Map Container */
+    #map {
+      height: calc(100vh - 64px);
+      z-index: 1;
+    }
+    
+    /* Navigation Drawer */
+    .nav-drawer {
+      transform: translateX(-100%);
+      transition: transform 0.3s ease;
+    }
+    
+    .nav-drawer.open {
+      transform: translateX(0);
+    }
+    
+    /* Overlay */
+    .overlay {
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    
+    .overlay.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+    
+    /* Crop Icons */
+    .crop-icon {
+      font-size: 2rem;
+      transition: all 0.3s ease;
+    }
+    
+    .crop-icon:hover {
+      transform: scale(1.2) rotate(10deg);
+    }
+    
+    /* Progress Bar */
+    .progress-bar {
+      height: 10px;
+      border-radius: 5px;
+      background-color: #e0e0e0;
+    }
+    
+    .progress-fill {
+      height: 100%;
+      border-radius: 5px;
+      background: linear-gradient(90deg, var(--primary), var(--accent));
+      transition: width 0.3s ease;
+    }
+    
+    /* Plant Growth Animation Container */
+    .plant-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      pointer-events: none;
+      z-index: 1000;
+    }
+    
+    .plant-animation {
+      font-size: 100px;
+      color: var(--primary);
+      transform-origin: bottom center;
+      opacity: 0;
+    }
+    
+    /* Back to Map Button */
+    .back-to-map {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 1000;
+      background-color: var(--primary);
+      color: white;
+      border-radius: 50%;
+      width: 60px;
+      height: 60px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    
+    .back-to-map:hover {
+      transform: scale(1.1);
+      background-color: var(--secondary);
+    }
+    
+    /* Refresh Button */
+    .refresh-button {
+      position: fixed;
+      bottom: 90px;
+      right: 20px;
+      z-index: 1000;
+      background-color: var(--accent);
+      color: white;
+      border-radius: 50%;
+      width: 60px;
+      height: 60px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    
+    .refresh-button:hover {
+      transform: scale(1.1) rotate(90deg);
+      background-color: var(--primary);
+    }
+    
+    .refresh-button i {
+      transition: transform 0.3s ease;
+    }
+    
+    .refresh-button:hover i {
+      transform: rotate(180deg);
+    }
+  </style>
+</head>
+<body class="font-sans bg-gray-50">
+  <!-- Plant Growth Animation Container -->
+  <div id="plantAnimationContainer" class="plant-container">
+    <div id="plantAnimation" class="plant-animation">
+      <i class="fas fa-seedling"></i>
+    </div>
+  </div>
+    
+  <!-- Back to Map Button -->
+  <div id="backToMap" class="back-to-map hidden" onclick="showMap()">
+    <i class="fas fa-map-marked-alt text-2xl"></i>
+  </div>
+  
+  <!-- Refresh Button -->
+  <div id="refreshButton" class="refresh-button hidden" onclick="refreshPage()">
+    <i class="fas fa-sync-alt text-2xl"></i>
+  </div>
+
+  <!-- Header -->
+  <header class="fixed top-0 left-0 right-0 bg-primary text-white shadow-md z-50 h-16 flex items-center px-4">
+    <button id="menuButton" class="text-2xl mr-4" onclick="toggleMenu()">☰</button>
+    <div class="flex items-center">
+      <div class="relative h-10 mr-2">
+        <i class="fas fa-atom text-2xl text-white absolute animate-spin" style="animation-duration: 8s;"></i>
+        <i class="fas fa-leaf text-xl text-white ml-3 mt-3"></i>
+      </div>
+      <h1 class="text-xl font-display">AgroDecision</h1>
+    </div>
+    <div id="userInfo" class="ml-auto"></div>
+  </header>
+
+  <!-- Navigation Drawer -->
+  <nav id="navDrawer" class="nav-drawer fixed top-0 left-0 bottom-0 w-64 bg-white shadow-lg z-40 pt-16">
+    <div class="p-4">
+      <div class="nav-item flex items-center p-3 rounded-lg mb-2 bg-primary text-white" onclick="showScreen('home')">
+        <span class="text-xl mr-3">🏠</span>
+        <span>Início</span>
+      </div>
+      <div class="nav-item flex items-center p-3 rounded-lg mb-2 hover:bg-gray-100" onclick="showScreen('monthly')">
+        <span class="text-xl mr-3">📊</span>
+        <span>Consulta Mensal</span>
+      </div>
+      <div class="nav-item flex items-center p-3 rounded-lg mb-2 hover:bg-gray-100" onclick="showScreen('regional')">
+        <span class="text-xl mr-3">🌍</span>
+        <span>Consulta Regional</span>
+      </div>
+      <div class="nav-item flex items-center p-3 rounded-lg mb-2 hover:bg-gray-100" onclick="showScreen('indicators')">
+        <span class="text-xl mr-3">📈</span>
+        <span>Indicadores</span>
+      </div>
+      <div class="nav-item flex items-center p-3 rounded-lg mb-2 hover:bg-gray-100" onclick="showScreen('simulation')">
+        <span class="text-xl mr-3">🌾</span>
+        <span>Simulação</span>
+      </div>
+      <div class="nav-item flex items-center p-3 rounded-lg mb-2 hover:bg-gray-100" onclick="showScreen('history')">
+        <span class="text-xl mr-3">📑</span>
+        <span>Histórico</span>
+      </div>
+      <div id="loginButton" class="nav-item flex items-center p-3 rounded-lg hover:bg-gray-100" onclick="handleAuth()">
+        <span class="text-xl mr-3">👤</span>
+        <span>Login</span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Overlay -->
+  <div id="overlay" class="overlay fixed inset-0 bg-black bg-opacity-50 z-30" onclick="toggleMenu()"></div>
+
+  <!-- Main Content -->
+  <main class="pt-16">
+    <!-- Map View -->
+    <div id="map" class="w-full"></div>
+        
+    <!-- Content Views -->
+    <div id="content" class="hidden p-4">
+      <!-- Content will be dynamically loaded here -->
+    </div>
+  </main>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg hidden z-50"></div>
+
+  <!-- Script Libraries -->
+  <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+  <!-- App Script -->
+  <script>
+    // Service Worker Registration
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then(registration => {
+            console.log('ServiceWorker registration successful');
+          })
+          .catch(err => {
+            console.log('ServiceWorker registration failed: ', err);
+          });
+      });
+    }
+
+    // Global Variables
+    let map, marker;
+    let currentPosition = { lat: -15.7801, lng: -47.9292 }; // Default to Brasília
+    let climateData = null;
+    let simulations = [];
+        
+    // Plant growth animation state
+    let plantAnimationShown = false;
+
+    // Crop Data - 50 crops with emojis
+    const crops = [
+      { id: 'soybean', name: 'Soja', emoji: '🌱', yield: 3.5, water: 550, cycle: 120 },
+      { id: 'corn', name: 'Milho', emoji: '🌽', yield: 6.0, water: 700, cycle: 135 },
+      { id: 'wheat', name: 'Trigo', emoji: '🌾', yield: 3.2, water: 450, cycle: 110 },
+      { id: 'cotton', name: 'Algodão', emoji: '🧶', yield: 4.5, water: 800, cycle: 170 },
+      { id: 'coffee', name: 'Café', emoji: '☕', yield: 2.3, water: 1500, cycle: 240 },
+      { id: 'rice', name: 'Arroz', emoji: '🍚', yield: 4.8, water: 1200, cycle: 120 },
+      { id: 'sugarcane', name: 'Cana-de-Açúcar', emoji: '🎋', yield: 75.0, water: 1800, cycle: 365 },
+      { id: 'beans', name: 'Feijão', emoji: '🫘', yield: 2.5, water: 400, cycle: 90 },
+      { id: 'cassava', name: 'Mandioca', emoji: '🥔', yield: 20.0, water: 800, cycle: 300 },
+      { id: 'potato', name: 'Batata', emoji: '🥔', yield: 25.0, water: 500, cycle: 100 },
+      { id: 'tomato', name: 'Tomate', emoji: '🍅', yield: 80.0, water: 600, cycle: 120 },
+      { id: 'onion', name: 'Cebola', emoji: '🧅', yield: 35.0, water: 450, cycle: 120 },
+      { id: 'carrot', name: 'Cenoura', emoji: '🥕', yield: 40.0, water: 400, cycle: 100 },
+      { id: 'lettuce', name: 'Alface', emoji: '🥬', yield: 30.0, water: 250, cycle: 45 },
+      { id: 'cabbage', name: 'Repolho', emoji: '🥬', yield: 45.0, water: 380, cycle: 90 },
+      { id: 'peanut', name: 'Amendoim', emoji: '🥜', yield: 3.0, water: 500, cycle: 130 },
+      { id: 'sunflower', name: 'Girassol', emoji: '🌻', yield: 2.2, water: 600, cycle: 120 },
+      { id: 'grape', name: 'Uva', emoji: '🍇', yield: 18.0, water: 700, cycle: 150 },
+      { id: 'orange', name: 'Laranja', emoji: '🍊', yield: 25.0, water: 900, cycle: 240 },
+      { id: 'lemon', name: 'Limão', emoji: '🍋', yield: 22.0, water: 850, cycle: 240 },
+      { id: 'apple', name: 'Maçã', emoji: '🍎', yield: 35.0, water: 800, cycle: 180 },
+      { id: 'mango', name: 'Manga', emoji: '🥭', yield: 20.0, water: 1000, cycle: 150 },
+      { id: 'banana', name: 'Banana', emoji: '🍌', yield: 35.0, water: 1200, cycle: 300 },
+      { id: 'papaya', name: 'Mamão', emoji: '🍈', yield: 40.0, water: 1100, cycle: 270 },
+      { id: 'pineapple', name: 'Abacaxi', emoji: '🍍', yield: 45.0, water: 900, cycle: 540 },
+      { id: 'strawberry', name: 'Morango', emoji: '🍓', yield: 30.0, water: 450, cycle: 90 },
+      { id: 'blackberry', name: 'Amora', emoji: '🫐', yield: 15.0, water: 500, cycle: 120 },
+      { id: 'avocado', name: 'Abacate', emoji: '🥑', yield: 15.0, water: 750, cycle: 240 },
+      { id: 'coconut', name: 'Coco', emoji: '🥥', yield: 12.0, water: 1300, cycle: 365 },
+      { id: 'watermelon', name: 'Melancia', emoji: '🍉', yield: 35.0, water: 550, cycle: 80 },
+      { id: 'melon', name: 'Melão', emoji: '🍈', yield: 25.0, water: 500, cycle: 75 },
+      { id: 'pumpkin', name: 'Abóbora', emoji: '🎃', yield: 30.0, water: 450, cycle: 120 },
+      { id: 'cucumber', name: 'Pepino', emoji: '🥒', yield: 45.0, water: 400, cycle: 60 },
+      { id: 'pepper', name: 'Pimentão', emoji: '🫑', yield: 25.0, water: 500, cycle: 120 },
+      { id: 'eggplant', name: 'Berinjela', emoji: '🍆', yield: 35.0, water: 550, cycle: 120 },
+      { id: 'garlic', name: 'Alho', emoji: '🧄', yield: 12.0, water: 350, cycle: 150 },
+      { id: 'sweetPotato', name: 'Batata-Doce', emoji: '🍠', yield: 18.0, water: 450, cycle: 150 },
+      { id: 'barley', name: 'Cevada', emoji: '🌾', yield: 4.2, water: 450, cycle: 120 },
+      { id: 'oats', name: 'Aveia', emoji: '🌾', yield: 3.8, water: 450, cycle: 120 },
+      { id: 'rye', name: 'Centeio', emoji: '🌾', yield: 3.5, water: 420, cycle: 120 },
+      { id: 'sorghum', name: 'Sorgo', emoji: '🌾', yield: 5.0, water: 550, cycle: 120 },
+      { id: 'quinoa', name: 'Quinoa', emoji: '🌾', yield: 2.8, water: 400, cycle: 120 },
+      { id: 'chia', name: 'Chia', emoji: '🌱', yield: 1.2, water: 300, cycle: 120 },
+      { id: 'flax', name: 'Linhaça', emoji: '🌱', yield: 1.8, water: 400, cycle: 100 },
+      { id: 'hemp', name: 'Cânhamo', emoji: '🌿', yield: 2.5, water: 400, cycle: 120 },
+      { id: 'sesame', name: 'Gergelim', emoji: '🌱', yield: 1.5, water: 350, cycle: 90 },
+      { id: 'safflower', name: 'Cártamo', emoji: '🌺', yield: 2.0, water: 450, cycle: 130 },
+      { id: 'chickpea', name: 'Grão-de-Bico', emoji: '🌱', yield: 2.2, water: 400, cycle: 120 },
+      { id: 'lentil', name: 'Lentilha', emoji: '🌱', yield: 1.8, water: 380, cycle: 100 },
+      { id: 'alfalfa', name: 'Alfafa', emoji: '🌿', yield: 12.0, water: 800, cycle: 365 },
+      { id: 'clover', name: 'Trevo', emoji: '☘️', yield: 8.0, water: 600, cycle: 240 }
+    ];
+
+    // Initialize the app
+    document.addEventListener('DOMContentLoaded', () => {
+      initMap();
+      loadSimulations();
+      updateUserInfo();
+            
+      // Show plant growth animation on first load
+      if (!plantAnimationShown) {
+        showPlantGrowthAnimation();
+        plantAnimationShown = true;
+      }
+            
+      // Check if PWA is installed
+      if (window.matchMedia('(display-mode: standalone)').matches) {
+        console.log('Running as PWA');
+      }
+    });
+
+    // Show plant growth animation
+    function showPlantGrowthAnimation() {
+      const plant = document.getElementById('plantAnimation');
+      plant.classList.add('animate-grow');
+            
+      // Remove animation class after it completes
+      setTimeout(() => {
+        plant.classList.remove('animate-grow');
+        plant.style.opacity = '0';
+      }, 1500);
+    }
+
+    // Initialize Leaflet Map
+    function initMap() {
+      map = L.map('map').setView([currentPosition.lat, currentPosition.lng], 5);
+            
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      }).addTo(map);
+            
+      // Add custom icon (atom and plant)
+      const farmIcon = L.divIcon({
+        html: '<div class="relative"><i class="fas fa-atom text-blue-500 animate-spin" style="font-size: 24px; animation-duration: 8s;"></i><i class="fas fa-leaf text-green-500 ml-1" style="font-size: 18px;"></i></div>',
+        className: 'custom-icon',
+        iconSize: [32, 32],
+        iconAnchor: [16, 32],
+        popupAnchor: [0, -32]
+      });
+            
+      marker = L.marker([currentPosition.lat, currentPosition.lng], { icon: farmIcon }).addTo(map)
+        .bindPopup('Selecione um local no mapa para começar')
+        .openPopup();
+            
+      // Handle map clicks
+      map.on('click', async (e) => {
+        currentPosition = e.latlng;
+                
+        if (marker) {
+          map.removeLayer(marker);
+        }
+                
+        marker = L.marker([currentPosition.lat, currentPosition.lng], { icon: farmIcon })
+          .addTo(map)
+          .bindPopup('Carregando dados climáticos...')
+          .openPopup();
+                
+        // Show loading animation
+        showLoading('Carregando dados climáticos...');
+                
+        try {
+          // Simulate API call (in a real app, you would call a weather API)
+          climateData = await fetchClimateData(currentPosition.lat, currentPosition.lng);
+                    
+          // Update marker popup
+          marker.setPopupContent(`
+            <div class="p-2">
+              <h3 class="font-bold text-lg mb-2">Dados Climáticos</h3>
+              <p>🌡️ Temperatura: ${climateData.temp}°C</p>
+              <p>🌧️ Precipitação: ${climateData.rain}mm</p>
+              <p>💧 Umidade: ${climateData.humidity}%</p>
+              <button class="mt-2 px-3 py-1 bg-primary text-white rounded" onclick="showScreen('simulation')">
+                Simular Cultivo
+              </button>
+            </div>
+          `);
+                    
+          showToast('Dados climáticos carregados com sucesso!', 'success');
+        } catch (error) {
+          console.error('Error fetching climate data:', error);
+          marker.setPopupContent('Erro ao carregar dados climáticos');
+          showToast('Erro ao carregar dados climáticos', 'error');
+        } finally {
+          hideLoading();
+        }
+      });
+    }
+
+    // Show map view
+    function showMap() {
+      const content = document.getElementById('content');
+      const mapElement = document.getElementById('map');
+            
+      content.classList.add('hidden');
+      mapElement.classList.remove('hidden');
+      document.getElementById('backToMap').classList.add('hidden');
+      document.getElementById('refreshButton').classList.add('hidden');
+            
+      // Show plant growth animation when returning to map
+      showPlantGrowthAnimation();
+    }
+
+    // Refresh the page
+    function refreshPage() {
+      location.reload();
+    }
+
+    // Simulate fetching climate data
+    function fetchClimateData(lat, lng) {
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          resolve({
+            temp: (20 + Math.random() * 15).toFixed(1),
+            rain: (50 + Math.random() * 100).toFixed(1),
+            humidity: (40 + Math.random() * 40).toFixed(0)
+          });
+        }, 1500);
+      });
+    }
+
+    // Toggle navigation menu
+    function toggleMenu() {
+      const navDrawer = document.getElementById('navDrawer');
+      const overlay = document.getElementById('overlay');
+            
+      navDrawer.classList.toggle('open');
+      overlay.classList.toggle('active');
+    }
+
+    // Show different screens
+    function showScreen(screenName) {
+      const content = document.getElementById('content');
+      const mapElement = document.getElementById('map');
+      const backToMap = document.getElementById('backToMap');
+      const refreshButton = document.getElementById('refreshButton');
+            
+      // Hide menu
+      toggleMenu();
+            
+      // Show content and hide map
+      content.classList.remove('hidden');
+      mapElement.classList.add('hidden');
+      backToMap.classList.remove('hidden');
+      refreshButton.classList.remove('hidden');
+            
+      // Clear content
+      content.innerHTML = '';
+            
+      // Show plant growth animation on screen transition
+      showPlantGrowthAnimation();
+            
+      // Load appropriate screen
+      switch(screenName) {
+        case 'home':
+          loadHomeScreen();
+          break;
+        case 'monthly':
+          loadMonthlyReport();
+          break;
+        case 'regional':
+          loadRegionalReport();
+          break;
+        case 'indicators':
+          loadIndicators();
+          break;
+        case 'simulation':
+          loadSimulation();
+          break;
+        case 'history':
+          loadHistory();
+          break;
+      }
+    }
+
+    // Load home screen with animations
+    function loadHomeScreen() {
+      const content = document.getElementById('content');
+            
+      content.innerHTML = `
+        <div class="animate__animated animate__fadeIn">
+          <div class="text-center mb-8">
+            <div class="animate-float inline-block">
+              <div class="relative">
+                <i class="fas fa-atom text-blue-500 text-6xl animate-spin" style="animation-duration: 8s;"></i>
+                <i class="fas fa-leaf text-green-500 text-4xl ml-2 absolute top-8 left-8"></i>
+              </div>
+            </div>
+            <h1 class="text-3xl font-display text-primary mt-4">AgroDecision</h1>
+            <p class="text-gray-600">Sua ferramenta inteligente para análise climática agrícola</p>
+          </div>
+                    
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="bg-white p-6 rounded-xl shadow-md card-3d">
+              <div class="text-4xl mb-3">🌱</div>
+              <h3 class="font-bold text-lg mb-2">50 Culturas</h3>
+              <p class="text-gray-600">Análise detalhada para diversas culturas agrícolas</p>
+            </div>
+                        
+            <div class="bg-white p-6 rounded-xl shadow-md card-3d">
+              <div class="text-4xl mb-3">🌦️</div>
+              <h3 class="font-bold text-lg mb-2">Dados Climáticos</h3>
+              <p class="text-gray-600">Previsões precisas baseadas em dados reais</p>
+            </div>
+                        
+            <div class="bg-white p-6 rounded-xl shadow-md card-3d">
+              <div class="text-4xl mb-3">📱</div>
+              <h3 class="font-bold text-lg mb-2">PWA</h3>
+              <p class="text-gray-600">Instalável no celular e computador</p>
+            </div>
+          </div>
+                    
+          <button class="w-full py-3 bg-primary text-white rounded-lg font-bold animate-pulse"
+                  onclick="showScreen('simulation')">
+            Começar Simulação
+          </button>
+        </div>
+      `;
+    }
+
+    // Load simulation screen
+    function loadSimulation() {
+      const content = document.getElementById('content');
+            
+      content.innerHTML = `
+        <div class="animate__animated animate__fadeIn">
+          <h2 class="text-2xl font-bold mb-6 text-primary">Simulação de Cultivo</h2>
+                    
+          <div class="bg-white p-4 rounded-lg shadow-md mb-6">
+            <h3 class="font-bold mb-2">Progresso</h3>
+            <div class="progress-bar mb-1">
+              <div id="progressFill" class="progress-fill" style="width: 0%"></div>
+            </div>
+            <p id="progressText" class="text-sm text-gray-600">0% completo</p>
+          </div>
+                    
+          <form id="simulationForm" class="space-y-4">
+            <div class="bg-white p-4 rounded-lg shadow-md">
+              <label class="block font-bold mb-2">Cultura</label>
+              <select id="cropSelect" class="w-full p-3 border rounded-lg" required
+                      onchange="updateProgress()">
+                <option value="">Selecione uma cultura</option>
+                ${crops.map(crop => `
+                  <option value="${crop.id}">${crop.emoji} ${crop.name}</option>
+                `).join('')}
+              </select>
+            </div>
+                        
+            <div class="bg-white p-4 rounded-lg shadow-md">
+              <label class="block font-bold mb-2">Área (hectares)</label>
+              <input id="areaInput" type="number" min="0" step="0.1" class="w-full p-3 border rounded-lg"
+                      required onchange="updateProgress()">
+            </div>
+                        
+            <div class="bg-white p-4 rounded-lg shadow-md">
+              <label class="block font-bold mb-2">Sistema de Irrigação</label>
+              <select id="irrigationSelect" class="w-full p-3 border rounded-lg" required
+                      onchange="updateProgress()">
+                <option value="">Selecione um sistema</option>
+                <option value="pivot">Pivô Central</option>
+                <option value="drip">Gotejamento</option>
+                <option value="sprinkler">Aspersão</option>
+              </select>
+            </div>
+                        
+            <div class="bg-white p-4 rounded-lg shadow-md">
+              <label class="block font-bold mb-2">Tipo de Solo</label>
+              <select id="soilSelect" class="w-full p-3 border rounded-lg" required
+                      onchange="updateProgress()">
+                <option value="">Selecione um tipo</option>
+                <option value="clay">Argiloso</option>
+                <option value="sandy">Arenoso</option>
+                <option value="loam">Franco</option>
+              </select>
+            </div>
+                        
+            <div class="bg-white p-4 rounded-lg shadow-md">
+              <label class="block font-bold mb-2">Data de Plantio</label>
+              <input id="plantingDate" type="date" class="w-full p-3 border rounded-lg"
+                      required onchange="updateProgress()">
+            </div>
+                        
+            <button type="button" class="w-full py-3 bg-primary text-white rounded-lg font-bold"
+                    onclick="runSimulation()">
+              <span class="flex items-center justify-center">
+                <span class="mr-2">🌱</span>
+                <span>Simular Cultivo</span>
+              </span>
+            </button>
+          </form>
+                    
+          <div id="simulationResults" class="hidden mt-8 animate__animated animate__fadeIn">
+            <h3 class="text-xl font-bold mb-4 text-primary">Resultados da Simulação</h3>
+                        
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div class="bg-white p-4 rounded-lg shadow-md">
+                <div class="flex items-center mb-2">
+                  <span class="text-2xl mr-2">📊</span>
+                  <h4 class="font-bold">Produtividade Estimada</h4>
+                </div>
+                <p id="yieldResult" class="text-2xl font-bold text-primary">-</p>
+              </div>
+                            
+              <div class="bg-white p-4 rounded-lg shadow-md">
+                <div class="flex items-center mb-2">
+                  <span class="text-2xl mr-2">💧</span>
+                  <h4 class="font-bold">Necessidade Hídrica</h4>
+                </div>
+                <p id="waterResult" class="text-2xl font-bold text-primary">-</p>
+              </div>
+                            
+              <div class="bg-white p-4 rounded-lg shadow-md">
+                <div class="flex items-center mb-2">
+                  <span class="text-2xl mr-2">⏳</span>
+                  <h4 class="font-bold">Ciclo de Cultivo</h4>
+                </div>
+                <p id="cycleResult" class="text-2xl font-bold text-primary">-</p>
+              </div>
+                            
+              <div class="bg-white p-4 rounded-lg shadow-md">
+                <div class="flex items-center mb-2">
+                  <span class="text-2xl mr-2">📅</span>
+                  <h4 class="font-bold">Data de Colheita</h4>
+                </div>
+                <p id="harvestResult" class="text-2xl font-bold text-primary">-</p>
+              </div>
+            </div>
+                        
+            <div class="bg-white p-4 rounded-lg shadow-md">
+              <h4 class="font-bold mb-3">Probabilidade de Sucesso</h4>
+              <div id="probabilityChart" class="h-64"></div>
+            </div>
+                        
+            <button class="w-full mt-6 py-3 bg-primary text-white rounded-lg font-bold"
+                    onclick="saveSimulation()">
+              <span class="flex items-center justify-center">
+                <span class="mr-2">💾</span>
+                <span>Salvar Simulação</span>
+              </span>
+            </button>
+          </div>
+        </div>
+      `;
+            
+      // Set default date to today
+      document.getElementById('plantingDate').valueAsDate = new Date();
+    }
+
+    // Update progress bar
+    function updateProgress() {
+      const form = document.getElementById('simulationForm');
+      const inputs = form.querySelectorAll('select, input');
+      let filled = 0;
+            
+      inputs.forEach(input => {
+        if (input.value) filled++;
+      });
+            
+      const progress = (filled / inputs.length) * 100;
+      document.getElementById('progressFill').style.width = `${progress}%`;
+      document.getElementById('progressText').textContent = `${Math.round(progress)}% completo`;
+    }
+
+    // Run simulation
+    function runSimulation() {
+      const form = document.getElementById('simulationForm');
+      const results = document.getElementById('simulationResults');
+            
+      // Validate form
+      if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+      }
+            
+      // Show loading
+      showLoading('Calculando resultados...');
+            
+      // Get form values
+      const cropId = document.getElementById('cropSelect').value;
+      const area = parseFloat(document.getElementById('areaInput').value);
+      const irrigation = document.getElementById('irrigationSelect').value;
+      const soil = document.getElementById('soilSelect').value;
+      const plantingDate = new Date(document.getElementById('plantingDate').value);
+            
+      // Find selected crop
+      const crop = crops.find(c => c.id === cropId);
+            
+      // Calculate results (simplified for demo)
+      setTimeout(() => {
+        // Calculate irrigation factor
+        let irrigationFactor = 1;
+        if (irrigation === 'pivot') irrigationFactor = 1.2;
+        if (irrigation === 'drip') irrigationFactor = 1.5;
+        if (irrigation === 'sprinkler') irrigationFactor = 1.1;
+                
+        // Calculate soil factor
+        let soilFactor = 1;
+        if (soil === 'clay') soilFactor = 1.1;
+        if (soil === 'sandy') soilFactor = 0.8;
+        if (soil === 'loam') soilFactor = 1.3;
+                
+        // Calculate results
+        const yieldResult = (crop.yield * area * soilFactor * irrigationFactor).toFixed(1);
+        const waterResult = (crop.wear * area / irrigationFactor).toFixed(0);
+                
+        // Calculate harvest date
+        const harvestDate = new Date(plantingDate);
+        harvestDate.setDate(harvestDate.getDate() + crop.cycle);
+                
+        // Update UI with results
+        document.getElementById('yieldResult').textContent = `${yieldResult} ton`;
+        document.getElementById('waterResult').textContent = `${waterResult} mm`;
+        document.getElementById('cycleResult').textContent = `${crop.cycle} dias`;
+        document.getElementById('harvestResult').textContent = harvestDate.toLocaleDateString('pt-BR');
+                
+        // Show results
+        results.classList.remove('hidden');
+                
+        // Create probability chart (simplified)
+        createProbabilityChart();
+                
+        hideLoading();
+      }, 1500);
+    }
+
+    // Create probability chart
+    function createProbabilityChart() {
+      const ctx = document.createElement('canvas');
+      document.getElementById('probabilityChart').appendChild(ctx);
+            
+      // Generate random probabilities for demo
+      const probabilities = [];
+      for (let i = -3; i <= 3; i++) {
+        probabilities.push({
+          day: i,
+          probability: Math.min(0.9, Math.max(0.1, 0.7 + (Math.random() * 0.3 - 0.15)))
+        });
+      }
+            
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: probabilities.map(p => p.day === 0 ? 'Data Ideal' : `${p.day} dia${p.day !== 1 ? 's' : ''}`),
+          datasets: [{
+            label: 'Probabilidade de Sucesso',
+            data: probabilities.map(p => p.probability * 100),
+            backgroundColor: probabilities.map(p => 
+              p.probability > 0.7 ? '#4CAF50' :
+              p.probability > 0.5 ? '#FFC107' : '#F44336'
+            ),
+            borderColor: '#fff',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 100,
+              title: {
+                display: true,
+                text: 'Probabilidade (%)'
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // Save simulation to history
+    function saveSimulation() {
+      const cropId = document.getElementById('cropSelect').value;
+      const crop = crops.find(c => c.id === cropId);
+            
+      const simulation = {
+        id: Date.now(),
+        date: new Date().toISOString(),
+        crop: crop.name,
+        cropEmoji: crop.emoji,
+        area: document.getElementById('areaInput').value,
+        irrigation: document.getElementById('irrigationSelect').value,
+        soil: document.getElementById('soilSelect').value,
+        plantingDate: document.getElementById('plantingDate').value,
+        yield: document.getElementById('yieldResult').textContent,
+        water: document.getElementById('waterResult').textContent,
+        cycle: document.getElementById('cycleResult').textContent,
+        harvestDate: document.getElementById('harvestResult').textContent
+      };
+            
+      simulations.push(simulation);
+      localStorage.setItem('simulations', JSON.stringify(simulations));
+            
+      showToast('Simulação salva com sucesso!', 'success');
+      loadHistory();
+    }
+
+    // Load simulations from storage
+    function loadSimulations() {
+      const saved = localStorage.getItem('simulations');
+      simulations = saved ? JSON.parse(saved) : [];
+    }
+
+    // Load history screen
+    function loadHistory() {
+      const content = document.getElementById('content');
+            
+      if (simulations.length === 0) {
+        content.innerHTML = `
+          <div class="animate__animated animate__fadeIn text-center py-8">
+            <div class="text-6xl mb-4">📭</div>
+            <h2 class="text-xl font-bold mb-2">Nenhuma simulação encontrada</h2>
+            <p class="text-gray-600 mb-6">Realize uma simulação para ver o histórico</p>
+            <button class="px-4 py-2 bg-primary text-white rounded-lg"
+                     onclick="showScreen('simulation')">
+              Nova Simulação
+            </button>
+          </div>
+        `;
+        return;
+      }
+            
+      content.innerHTML = `
+        <div class="animate__animated animate__fadeIn">
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold text-primary">Histórico de Simulações</h2>
+            <button class="px-3 py-1 bg-primary text-white rounded text-sm"
+                     onclick="clearHistory()">
+              Limpar Histórico
+            </button>
+          </div>
+                    
+          <div class="space-y-4">
+            ${simulations.map(sim => `
+              <div class="bg-white p-4 rounded-lg shadow-md card-3d">
+                <div class="flex items-start mb-3">
+                  <span class="text-3xl mr-3 crop-icon">${sim.cropEmoji}</span>
+                  <div>
+                    <h3 class="font-bold">${sim.crop}</h3>
+                    <p class="text-sm text-gray-500">${new Date(sim.date).toLocaleDateString('pt-BR')}</p>
+                  </div>
+                </div>
+                                
+                <div class="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <span class="text-gray-500">Área:</span>
+                    <span class="font-medium">${sim.area} ha</span>
+                  </div>
+                  <div>
+                    <span class="text-gray-500">Solo:</span>
+                    <span class="font-medium">${sim.soil}</span>
+                  </div>
+                  <div>
+                    <span class="text-gray-500">Irrigação:</span>
+                    <span class="font-medium">${sim.irrigation}</span>
+                  </div>
+                  <div>
+                    <span class="text-gray-500">Plantio:</span>
+                    <span class="font-medium">${sim.plantingDate}</span>
+                  </div>
+                </div>
+                                
+                <div class="mt-3 pt-3 border-t grid grid-cols-2 gap-3">
+                  <div class="bg-gray-50 p-2 rounded">
+                    <div class="text-xs text-gray-500">Produtividade</div>
+                    <div class="font-bold text-primary">${sim.yield}</div>
+                  </div>
+                  <div class="bg-gray-50 p-2 rounded">
+                    <div class="text-xs text-gray-500">Água</div>
+                    <div class="font-bold text-primary">${sim.water}</div>
+                  </div>
+                  <div class="bg-gray-50 p-2 rounded">
+                    <div class="text-xs text-gray-500">Ciclo</div>
+                    <div class="font-bold text-primary">${sim.cycle}</div>
+                  </div>
+                  <div class="bg-gray-50 p-2 rounded">
+                    <div class="text-xs text-gray-500">Colheita</div>
+                    <div class="font-bold text-primary">${sim.harvestDate}</div>
+                  </div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    // Clear history
+    function clearHistory() {
+      if (confirm('Tem certeza que deseja limpar todo o histórico?')) {
+        simulations = [];
+        localStorage.removeItem('simulations');
+        loadHistory();
+      }
+    }
+
+    // Load monthly report
+    function loadMonthlyReport() {
+      const content = document.getElementById('content');
+            
+      content.innerHTML = `
+        <div class="animate__animated animate__fadeIn">
+          <h2 class="text-2xl font-bold mb-6 text-primary">Relatório Mensal</h2>
+                    
+          <div class="bg-white p-4 rounded-lg shadow-md mb-6">
+            <h3 class="font-bold mb-3">Resumo Climático</h3>
+                        
+            <div class="grid grid-cols-2 gap-4 mb-4">
+              <div class="bg-gray-50 p-3 rounded-lg">
+                <div class="flex items-center mb-1">
+                  <span class="text-xl mr-2">🌡️</span>
+                  <span class="font-medium">Temperatura</span>
+                </div>
+                <div class="text-2xl font-bold text-primary">${(20 + Math.random() * 5).toFixed(1)}°C</div>
+              </div>
+                            
+              <div class="bg-gray-50 p-3 rounded-lg">
+                <div class="flex items-center mb-1">
+                  <span class="text-xl mr-2">🌧️</span>
+                  <span class="font-medium">Precipitação</span>
+                </div>
+                <div class="text-2xl font-bold text-primary">${(50 + Math.random() * 50).toFixed(0)}mm</div>
+              </div>
+            </div>
+          </div>
+                    
+          <div class="bg-white p-4 rounded-lg shadow-md mb-6">
+            <h3 class="font-bold mb-3">Previsão Mensal</h3>
+            <canvas id="monthlyChart" height="250"></canvas>
+          </div>
+                    
+          <div class="bg-white p-4 rounded-lg shadow-md">
+            <h3 class="font-bold mb-3">Recomendações</h3>
+                        
+            <div class="space-y-3">
+              <div class="flex items-start">
+                <span class="text-xl mr-3">🌱</span>
+                <div>
+                  <h4 class="font-medium">Plantio Ideal</h4>
+                  <p class="text-sm text-gray-600">Período favorável para plantio de soja và milho</p>
+                </div>
+              </div>
+                            
+              <div class="flex items-start">
+                <span class="text-xl mr-3">💧</span>
+                <div>
+                  <h4 class="font-medium">Irrigação</h4>
+                  <p class="text-sm text-gray-600">Reduzir irrigação devido às chuvas previstas</p>
+                </div>
+              </div>
+                            
+              <div class="flex items-start">
+                <span class="text-xl mr-3">⚠️</span>
+                <div>
+                  <h4 class="font-medium">Alerta</h4>
+                  <p class="text-sm text-gray-600">Possível ocorrência de geada na última semana</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+            
+      // Create monthly chart
+      setTimeout(() => {
+        const ctx = document.getElementById('monthlyChart').getContext('2d');
+        new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: ['Semana 1', 'Semana 2', 'Semana 3', 'Semana 4'],
+            datasets: [
+              {
+                label: 'Temperatura (°C)',
+                data: [22, 24, 23, 20],
+                borderColor: '#F44336',
+                backgroundColor: 'rgba(244, 67, 54, 0.1)',
+                tension: 0.3,
+                yAxisID: 'y'
+              },
+              {
+                label: 'Precipitação (mm)',
+                data: [30, 45, 20, 60],
+                borderColor: '#2196F3',
+                backgroundColor: 'rgba(33, 150, 243, 0.1)',
+                tension: 0.3,
+                yAxisID: 'y1'
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            scales: {
+              y: {
+                type: 'linear',
+                display: true,
+                position: 'left',
+                title: {
+                  display: true,
+                  text: 'Temperatura (°C)'
+                }
+              },
+              y1: {
+                type: 'linear',
+                display: true,
+                position: 'right',
+                title: {
+                  display: true,
+                  text: 'Precipitação (mm)'
+                },
+                grid: {
+                  drawOnChartArea: false
+                }
+              }
+            }
+          }
+        });
+      }, 100);
+    }
+
+    // Load regional report
+    function loadRegionalReport() {
+      const content = document.getElementById('content');
+            
+      content.innerHTML = `
+        <div class="animate__animated animate__fadeIn">
+          <h2 class="text-2xl font-bold mb-6 text-primary">Relatório Regional</h2>
+                    
+          <div class="bg-white p-4 rounded-lg shadow-md mb-6">
+            <h3 class="font-bold mb-3">Notícias Agrícolas</h3>
+                        
+            <div class="space-y-4">
+              <div class="flex items-start">
+                <div class="bg-primary text-white p-2 rounded-lg mr-3">🌾</div>
+                <div>
+                  <h4 class="font-medium">Colheita de trigo atinge recorde na região</h4>
+                  <p class="text-sm text-gray-600">Produtores comemoram aumento de 15% na produtividade</p>
+                </div>
+              </div>
+                            
+              <div class="flex items-start">
+                <div class="bg-primary text-white p-2 rounded-lg mr-3">⚠️</div>
+                <div>
+                  <h4 class="font-medium">Alerta de praga nas lavouras de soja</h4>
+                  <p class="text-sm text-gray-600">Recomenda-se monitoramento constante das lavouras</p>
+                </div>
+              </div>
+                            
+              <div class="flex items-start">
+                <div class="bg-primary text-white p-2 rounded-lg mr-3">🌧️</div>
+                <div>
+                  <h4 class="font-medium">Chuvas irregulares preocupam produtores</h4>
+                  <p class="text-sm text-gray-600">Previsão indica possível estiagem nas próximas semanas</p>
+                </div>
+              </div>
+            </div>
+          </div>
+                    
+          <div class="bg-white p-4 rounded-lg shadow-md">
+            <h3 class="font-bold mb-3">Culturas em Destaque</h3>
+                        
+            <div class="grid grid-cols-2 gap-3">
+              <div class="bg-green-50 p-3 rounded-lg text-center">
+                <div class="text-3xl mb-1">🌱</div>
+                <h4 class="font-medium">Soja</h4>
+                <p class="text-xs text-gray-600">Boa adaptação</p>
+              </div>
+                            
+              <div class="bg-green-50 p-3 rounded-lg text-center">
+                <div class="text-3xl mb-1">🌽</div>
+                <h4 class="font-medium">Milho</h4>
+                <p class="text-xs text-gray-600">Cultivo ideal</p>
+              </div>
+                            
+              <div class="bg-yellow-50 p-3 rounded-lg text-center">
+                <div class="text-3xl mb-1">☕</div>
+                <h4 class="font-medium">Café</h4>
+                <p class="text-xs text-gray-600">Cuidado com geadas</p>
+              </div>
+                            
+              <div class="bg-red-50 p-3 rounded-lg text-center">
+                <div class="text-3xl mb-1">🍊</div>
+                <h4 class="font-medium">Laranja</h4>
+                <p class="text-xs text-gray-600">Não recomendado</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Load indicators
+    function loadIndicators() {
+      const content = document.getElementById('content');
+            
+      content.innerHTML = `
+        <div class="animate__animated animate__fadeIn">
+          <h2 class="text-2xl font-bold mb-6 text-primary">Indicadores Agrícolas</h2>
+                    
+          <div class="bg-white p-4 rounded-lg shadow-md mb-6">
+            <h3 class="font-bold mb-3">Índices de Vegetação</h3>
+            <canvas id="vegetationChart" height="250"></canvas>
+          </div>
+                    
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div class="bg-white p-4 rounded-lg shadow-md">
+              <h3 class="font-bold mb-3">Índice de Seca</h3>
+              <div class="flex items-center">
+                <div class="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mr-3">
+                  <span class="text-2xl">🏜️</span>
+                </div>
+                <div>
+                  <div class="text-2xl font-bold text-primary">${(Math.random() * 0.5 + 0.3).toFixed(2)}</div>
+                  <div class="text-sm text-gray-600">Moderado</div>
+                </div>
+              </div>
+            </div>
+                        
+            <div class="bg-white p-4 rounded-lg shadow-md">
+              <h3 class="font-bold mb-3">Índice de Saúde</h3>
+              <div class="flex items-center">
+                <div class="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mr-3">
+                  <span class="text-2xl">🌿</span>
+                </div>
+                <div>
+                  <div class="text-2xl font-bold text-primary">${(Math.random() * 0.3 + 0.6).toFixed(2)}</div>
+                  <div class="text-sm text-gray-600">Bom</div>
+                </div>
+              </div>
+            </div>
+          </div>
+                    
+          <div class="bg-white p-4 rounded-lg shadow-md">
+            <h3 class="font-bold mb-3">Riscos Climáticos</h3>
+                        
+            <div class="space-y-3">
+              <div>
+                <div class="flex justify-between mb-1">
+                  <span class="font-medium">Geada</span>
+                  <span class="font-bold text-primary">${(Math.random() * 30).toFixed(0)}%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                  <div class="bg-blue-500 h-2 rounded-full" style="width: ${Math.random() * 30}%"></div>
+                </div>
+              </div>
+                            
+              <div>
+                <div class="flex justify-between mb-1">
+                  <span class="font-medium">Seca</span>
+                  <span class="font-bold text-primary">${(Math.random() * 50 + 20).toFixed(0)}%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                  <div class="bg-yellow-500 h-2 rounded-full" style="width: ${Math.random() * 50 + 20}%"></div>
+                </div>
+              </div>
+                            
+              <div>
+                <div class="flex justify-between mb-1">
+                  <span class="font-medium">Chuvas Intensas</span>
+                  <span class="font-bold text-primary">${(Math.random() * 40).toFixed(0)}%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                  <div class="bg-red-500 h-2 rounded-full" style="width: ${Math.random() * 40}%"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+            
+      // Create vegetation chart
+      setTimeout(() => {
+        const ctx = document.getElementById('vegetationChart').getContext('2d');
+        new Chart(ctx, {
+          type: 'radar',
+          data: {
+            labels: ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho'],
+            datasets: [{
+              label: 'Índice NDVI',
+              data: [0.6, 0.7, 0.8, 0.85, 0.9, 0.8],
+              backgroundColor: 'rgba(76, 175, 80, 0.2)',
+              borderColor: '#4CAF50',
+              pointBackgroundColor: '#4CAF50',
+              pointRadius: 4
+            }]
+          },
+          options: {
+            responsive: true,
+            scales: {
+              r: {
+                angleLines: {
+                  display: true
+                },
+                suggestedMin: 0,
+                suggestedMax: 1
+              }
+            }
+          }
+        });
+      }, 100);
+    }
+
+    // Show loading indicator
+    function showLoading(message) {
+      Swal.fire({
+        title: message,
+        allowOutsideClick: false,
+        showConfirmButton: false,
+        willOpen: () => {
+          Swal.showLoading();
+        }
+      });
+    }
+
+    // Hide loading indicator
+    function hideLoading() {
+      Swal.close();
+    }
+
+    // Show toast notification
+    function showToast(message, type = 'info') {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.className = `fixed bottom-4 right-4 px-4 py-2 rounded-lg shadow-lg z-50 animate__animated animate__fadeInUp`;
+            
+      // Add color based on type
+      if (type === 'success') toast.classList.add('bg-green-500', 'text-white');
+      else if (type === 'error') toast.classList.add('bg-red-500', 'text-white');
+      else toast.classList.add('bg-gray-800', 'text-white');
+            
+      toast.classList.remove('hidden');
+            
+      // Hide after 3 seconds
+      setTimeout(() => {
+        toast.classList.add('animate__fadeOutDown');
+        setTimeout(() => toast.classList.add('hidden'), 500);
+      }, 3000);
+    }
+
+    // Update user info
+    function updateUserInfo() {
+      const userInfo = document.getElementById('userInfo');
+      const loginButton = document.getElementById('loginButton');
+            
+      // In a real app, you would check authentication state
+      const isLoggedIn = false;
+            
+      if (isLoggedIn) {
+        userInfo.innerHTML = `
+          <div class="flex items-center">
+            <img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" alt="User" class="w-8 h-8 rounded-full mr-2">
+            <span class="text-sm">Usuário</span>
+          </div>
+        `;
+        loginButton.innerHTML = `
+          <span class="text-xl mr-3">👋</span>
+          <span>Sair</span>
+        `;
+      } else {
+        userInfo.innerHTML = '';
+        loginButton.innerHTML = `
+          <span class="text-xl mr-3">👤</span>
+          <span>Login</span>
+        `;
+      }
+    }
+
+    // Handle authentication
+    function handleAuth() {
+      showToast('Funcionalidade de login será implementada', 'info');
+    }
+
+    // PWA Install Prompt
+    let deferredPrompt;
+        
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+            
+      // Show install button (you would add this to your UI)
+      showToast('Instale o AgroDecision no seu dispositivo!', 'info');
+            
+      // When user clicks install
+      document.getElementById('installButton').addEventListener('click', () => {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((choiceResult) => {
+          if (choiceResult.outcome === 'accepted') {
+            console.log('User accepted install');
+          } else {
+            console.log('User dismissed install');
+          }
+          deferredPrompt = null;
+        });
+      });
+    });
+  </script>
+</body>
+</html>
